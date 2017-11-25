@@ -53,7 +53,7 @@ void mySPI1_SendData(unsigned char data);
 void myLCD_SendInstruction(unsigned char data);
 void myLCD_SendChar(unsigned char data);
 void wait(uint32_t);
-void myDAC_Init(void);
+void myDAC_ADC_Init(void);
 
 // Your global variables...
 static float clock_Frequency = 48000000;
@@ -61,7 +61,7 @@ static float clock_Frequency = 48000000;
 unsigned char setRise =0;
 int count=0;
 float frequency =0;
-float period=0;
+float resistance=0;
 unsigned char data= 0x30;
 int main(int argc, char* argv[])
 {
@@ -73,15 +73,12 @@ int main(int argc, char* argv[])
 
 	myGPIOA_Init();		/* Initialize I/O port PA */
 	myGPIOB_Init();		/* Initialize I/O port PB */
-	myDAC_Init();		/* Initialize DAC */
+	myDAC_ADC_Init();		/* Initialize DAC and ADC */
 	wait(5);
 	mySPI1_Init();		/* Initialize SPI1 */
 	myLCD_Init();		/*Initialize LCD Display*/
 	wait(5);
-	myTIM2_Init();	  /* Initialize timer TIM2 */
-	myEXTI_Init();	  /* Initialize EXTI */
 
-	wait(5);
 //Display Something
 	//Set address
 	myLCD_SendInstruction(0x80);
@@ -103,8 +100,11 @@ int main(int argc, char* argv[])
 	myLCD_SendChar('z');
 	wait(4);
 
-	while(1){
-	}
+	myTIM2_Init();	  /* Initialize timer TIM2 */
+	myEXTI_Init();	  /* Initialize EXTI */
+
+	while(1);
+
 	return 0;
 }
 
@@ -121,18 +121,29 @@ void myGPIOA_Init()
 	/* Ensure no pull-up/pull-down for PA1 */
 	// Relevant register: GPIOA->PUPDR
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR1);
+
 //PA4 (DAC)
 	/* Configure PA4 as analog */
 	//GPIOA->MODER
 	GPIOA->MODER |= (0x300);
+	/* Ensure no pull-up/pull-down for PA4 */
+	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR4);
+	/* low speed mode for PA4 */
+	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR4);
+
 //PA6 (ADC)
 	/* Configure PA6 as analog */
 	//GPIOA->MODER
 	GPIOA->MODER |= (0x3000);
+	/* Ensure no pull-up/pull-down for PA6*/
+	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR6);
+	/* low speed mode for PA6 */
+	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR6);
 }
 
 void myGPIOB_Init()
 {
+//PB3 and 5
 	/* Enable clock for GPIOB peripheral */
 	// Relevant register: RCC->AHBENR
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
@@ -144,7 +155,7 @@ void myGPIOB_Init()
 	/* Ensure no pull-up/pull-down for PB3, PB5 */
 	// Relevant register: GPIOA->PUPDR
 	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR3 | GPIO_PUPDR_PUPDR5 );
-
+//PB4
 	/*Configure PB4 as Output*/
 	// Relevant register: GPIOA->MODER
 	GPIOB->MODER |= (GPIO_MODER_MODER4_0);
@@ -308,13 +319,13 @@ void EXTI0_1_IRQHandler()
 			count=(int)TIM2->CNT;
 		//	- Calculate signal period and frequency.
 			frequency= (float)(clock_Frequency/(float)count);
-			period= 1.0/frequency;
+			resistance = ADC1->DR;
 		//	- Print calculated values to the console.
 		//	  NOTE: Function trace_printf does not work
 		//	  with floating-point numbers: you must use
 		//	  "unsigned int" type to print your signal
 		//	  period and frequency.
-			trace_printf("Period: %.8f, Frequency: %.3f\n",period,frequency);
+			trace_printf("Frequency: %.8f, Resistance: %.2f\n",frequency,resistance);
 			setRise=0;
 		}
 		// 2. Clear EXTI1 interrupt pending flag (EXTI->PR).
@@ -375,8 +386,9 @@ void myLCD_SendChar(unsigned char data){
 	wait(4);
 }
 
-void myDAC_Init(){
+void myDAC_ADC_Init(){
 	DAC->CR |= 0x1;
+	ADC1->CR |=0x1;
 }
 
 void wait(uint32_t mag){
@@ -388,7 +400,6 @@ void wait(uint32_t mag){
 #pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
-
 
 
 
