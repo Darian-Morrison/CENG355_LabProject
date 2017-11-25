@@ -130,15 +130,6 @@ void myGPIOA_Init()
 	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR4);
 	/* low speed mode for PA4 */
 	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR4);
-
-//PA6 (ADC)
-	/* Configure PA6 as analog */
-	//GPIOA->MODER
-	GPIOA->MODER |= (0x3000);
-	/* Ensure no pull-up/pull-down for PA6*/
-	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR6);
-	/* low speed mode for PA6 */
-	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR6);
 }
 
 void myGPIOB_Init()
@@ -385,10 +376,32 @@ void myLCD_SendChar(unsigned char data){
 	mySPI1_SendData(0x40 | L);
 	wait(4);
 }
-
-void myDAC_ADC_Init(){
+void myDAC_Init(){
+	//Enable DAC
 	DAC->CR |= 0x1;
-	ADC1->CR |=0x1;
+}
+
+void myADC_Init(){
+//Configure Clocks	
+
+//Configure channel( ADC_IN6)
+	
+//GPIO PA6 as Analogue, no push pull
+	//Analogue
+	GPIOA->MODER |= (0x3000);
+	//Ensure no pull-up/pull-down for PA6
+	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR6);
+	//low speed mode for PA6 
+	GPIOA->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR6);
+	
+//ensure ADC disabled then calibrate, then re enable
+	ADC1->CR &= ~(0x1);
+	ADC1->CR |= 0x80000000;
+	ADC1->CR |= 0x01;
+	//Configure ADC for continuous mode (unsure if should enable DMA)
+	ADC1->CFGR1 |= 0x2000;
+	//Use Asynchronous clock
+	ADC1->CFGR2 |= 0x0;
 }
 
 void wait(uint32_t mag){
