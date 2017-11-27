@@ -293,25 +293,9 @@ void EXTI0_1_IRQHandler()
 		//	  with floating-point numbers: you must use
 		//	  "unsigned int" type to print your signal
 		//	  period and frequency.
-			trace_printf("Frequency: %d, Resistance: %d \n",frequency,resistance);
-			/*myLCD_SendInstruction(0x80);
-			wait(4);
-			myLCD_SendChar('F');
-			wait(4);
-			myLCD_SendChar(':');
-			wait(4);
-			myLCD_SendChar('0');
-			wait(4);
-			myLCD_SendChar('0');
-			wait(4);
-			myLCD_SendChar('0');
-			wait(4);
-			myLCD_SendChar('0');
-			wait(4);
-			myLCD_SendChar('H');
-			wait(4);
-			myLCD_SendChar('z');
-			wait(4);*/
+			//trace_printf("Frequency: %d, Resistance: %d \n",frequency,resistance);
+			myLCD_PrintLine(frequency,0);
+			myLCD_PrintLine(resistance,1);
 			setRise=0;
 		}
 		// 2. Clear EXTI1 interrupt pending flag (EXTI->PR).
@@ -319,6 +303,36 @@ void EXTI0_1_IRQHandler()
 
 	}
 }
+
+void myLCD_PrintLine(unsigned int num, unsigned int line){
+	char numstring[8];
+	//Check if line 1 or 2 to set address and add lables
+	if(line == 0){
+		myLCD_SendInstruction(0x80);
+		wait(4);
+		numstring[0] = 'F';
+		numstring[1] = ':';
+		numstring[6] = 'H';
+		numstring[7] = 'z';
+	}else if(line == 1){
+		myLCD_SendInstruction(0xC0);
+		numstring[0] = 'R';
+		numstring[1] = ':';
+		numstring[6] = 'O';
+		numstring[7] = 'h';	
+	}
+	//Convert num to Ascii String
+	numstring[2]=(unsigned char)((num/1000)+48);
+	numstring[3]=(unsigned char)(((num%1000)/100)+48);
+	numstring[4]=(unsigned char)(((num%100)/10)+48);
+	numstring[5]=(unsigned char)((num%10)+48);
+	//send string to LCD char by char
+	for(unsigned int i=0;i<8;i++){
+		myLCD_SendChar(numstring[i]);
+		wait(2);
+	}
+}
+
 void mySPI1_SendData(unsigned char data){
 	/* Force your LCK signal to 0 */
 	GPIOB->BRR = GPIO_Pin_4;
@@ -365,7 +379,7 @@ void myLCD_SendChar(unsigned char data){
 	mySPI1_SendData(0xC0 | H);
 	mySPI1_SendData(0x40 | H);
 	wait(4);
-	//lLow
+	//Low
 	mySPI1_SendData(0x40 | L);
 	mySPI1_SendData(0xC0 | L);
 	mySPI1_SendData(0x40 | L);
