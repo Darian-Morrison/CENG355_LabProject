@@ -53,15 +53,16 @@ void mySPI1_SendData(unsigned char data);
 void myLCD_SendInstruction(unsigned char data);
 void myLCD_SendChar(unsigned char data);
 void wait(uint32_t);
-void myDAC_ADC_Init(void);
+void myDAC_Init(void);
+void myADC_Init(void);
 
 // Your global variables...
 static float clock_Frequency = 48000000;
 
 unsigned char setRise =0;
 int count=0;
-float frequency =0;
-float resistance=0;
+unsigned int frequency =0;
+unsigned int resistance=0;
 unsigned char data= 0x30;
 int main(int argc, char* argv[])
 {
@@ -73,37 +74,23 @@ int main(int argc, char* argv[])
 
 	myGPIOA_Init();		/* Initialize I/O port PA */
 	myGPIOB_Init();		/* Initialize I/O port PB */
-	myDAC_ADC_Init();		/* Initialize DAC and ADC */
+	myDAC_Init();
+	myADC_Init();		/* Initialize DAC and ADC */
 	wait(5);
 	mySPI1_Init();		/* Initialize SPI1 */
 	myLCD_Init();		/*Initialize LCD Display*/
 	wait(5);
 
-//Display Something
-	//Set address
-	myLCD_SendInstruction(0x80);
-	wait(4);
-	myLCD_SendChar('F');
-	wait(4);
-	myLCD_SendChar(':');
-	wait(4);
-	myLCD_SendChar('0');
-	wait(4);
-	myLCD_SendChar('0');
-	wait(4);
-	myLCD_SendChar('0');
-	wait(4);
-	myLCD_SendChar('0');
-	wait(4);
-	myLCD_SendChar('H');
-	wait(4);
-	myLCD_SendChar('z');
-	wait(4);
-
 	myTIM2_Init();	  /* Initialize timer TIM2 */
 	myEXTI_Init();	  /* Initialize EXTI */
 
-	while(1);
+	//Send ADC conversion to DAC.
+	while(1){
+		DAC->DHR12R1 = ADC1->DR;
+		wait(1);
+		DAC->SWTRIGR = 0x1;
+		wait(1);
+	}
 
 	return 0;
 }
@@ -121,15 +108,6 @@ void myGPIOA_Init()
 	/* Ensure no pull-up/pull-down for PA1 */
 	// Relevant register: GPIOA->PUPDR
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR1);
-
-//PA4 (DAC)
-	/* Configure PA4 as analog */
-	//GPIOA->MODER
-	GPIOA->MODER |= (0x300);
-	/* Ensure no pull-up/pull-down for PA4 */
-	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR4);
-	/* low speed mode for PA4 */
-	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR4);
 }
 
 void myGPIOB_Init()
@@ -160,7 +138,6 @@ void myGPIOB_Init()
 
 	/* Ensure high-speed mode for PB4 */
 	GPIOB->OSPEEDR |= (GPIO_OSPEEDER_OSPEEDR4);
-
 }
 
 void myTIM2_Init()
@@ -309,14 +286,32 @@ void EXTI0_1_IRQHandler()
 		//	- Read out count register (TIM2->CNT).
 			count=(int)TIM2->CNT;
 		//	- Calculate signal period and frequency.
-			frequency= (float)(clock_Frequency/(float)count);
-			resistance = ADC1->DR;
+			frequency= (clock_Frequency/count);
+			resistance = (unsigned int)((ADC1->DR *5000)/4095);
 		//	- Print calculated values to the console.
 		//	  NOTE: Function trace_printf does not work
 		//	  with floating-point numbers: you must use
 		//	  "unsigned int" type to print your signal
 		//	  period and frequency.
-			trace_printf("Frequency: %.8f, Resistance: %.2f\n",frequency,resistance);
+			trace_printf("Frequency: %d, Resistance: %d \n",frequency,resistance);
+			/*myLCD_SendInstruction(0x80);
+			wait(4);
+			myLCD_SendChar('F');
+			wait(4);
+			myLCD_SendChar(':');
+			wait(4);
+			myLCD_SendChar('0');
+			wait(4);
+			myLCD_SendChar('0');
+			wait(4);
+			myLCD_SendChar('0');
+			wait(4);
+			myLCD_SendChar('0');
+			wait(4);
+			myLCD_SendChar('H');
+			wait(4);
+			myLCD_SendChar('z');
+			wait(4);*/
 			setRise=0;
 		}
 		// 2. Clear EXTI1 interrupt pending flag (EXTI->PR).
@@ -377,31 +372,48 @@ void myLCD_SendChar(unsigned char data){
 	wait(4);
 }
 void myDAC_Init(){
-	//Enable DAC
-	DAC->CR |= 0x1;
+//Enable DAC Clock
+	RCC->APB1ENR |= 0x20000000;
+//GPIO PA4 as analog
+	//Analog
+	GPIOA->MODER |= (0x300);
+	/* Ensure no pull-up/pull-down for PA4 */
+	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR4);
+	/* low speed mode for PA4 */
+	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR4);
+
+	//Enable DAC and software trigger
+	DAC->CR |= 0x39;
 }
 
 void myADC_Init(){
-//Configure Clocks	
+//Configure Clocks
+	RCC->CR |= 0x1;
+	RCC->APB2ENR |=RCC_APB2ENR_ADCEN;
 
-//Configure channel( ADC_IN6)
-	
-//GPIO PA6 as Analogue, no push pull
-	//Analogue
+//GPIO PA6 as Analog, no push pull
+	//Analog
 	GPIOA->MODER |= (0x3000);
 	//Ensure no pull-up/pull-down for PA6
 	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR6);
-	//low speed mode for PA6 
+	//low speed mode for PA6
 	GPIOA->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR6);
-	
-//ensure ADC disabled then calibrate, then re enable
+
+	//ensure ADC disabled then calibrate, then re enable
 	ADC1->CR &= ~(0x1);
 	ADC1->CR |= 0x80000000;
-	ADC1->CR |= 0x01;
-	//Configure ADC for continuous mode (unsure if should enable DMA)
+	while((ADC1->CR & 0x80000000)==0x80000000);
+	ADC1->CR |= 0x1;
+	//Configure ADC for continuous mode and DMA
 	ADC1->CFGR1 |= 0x2000;
+	//Select ADC channel ADC_IN6
+	ADC1->CHSELR |= 0x40;
 	//Use Asynchronous clock
-	ADC1->CFGR2 |= 0x0;
+	ADC1->CFGR2 &= ~(0xC0000000);
+	//wait for ADC to be ready by checking ADRDY
+	while((ADC1->ISR & 0x1)!=0x1);
+	//Enable ADC Start
+	ADC1->CR |= (0x4);
 }
 
 void wait(uint32_t mag){
@@ -413,6 +425,5 @@ void wait(uint32_t mag){
 #pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
-
 
 
