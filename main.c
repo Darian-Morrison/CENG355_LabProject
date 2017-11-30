@@ -36,13 +36,13 @@
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
-
+　
 /* Clock prescaler for TIM2 timer: no prescaling */
 #define myTIM2_PRESCALER ((uint16_t)0x0000)
 /* Maximum possible setting for overflow */
 #define myTIM2_PERIOD ((uint32_t)0xFFFFFFFF)
 
-
+　
 void myGPIOA_Init(void);
 void myGPIOB_Init(void);
 void myTIM2_Init(void);
@@ -87,9 +87,8 @@ int main(int argc, char* argv[])
 	//Send ADC conversion to DAC.
 	while(1){
 		DAC->DHR12R1 = ADC1->DR;
-		wait(1);
 		DAC->SWTRIGR = 0x1;
-		wait(1);
+		resistance = (unsigned int)((ADC1->DR *5000)/4095);
 	}
 
 	return 0;
@@ -211,7 +210,7 @@ void TIM2_IRQHandler()
 	}
 }
 
-
+　
 void mySPI1_Init(){
 	//SPI1 Structures
 	SPI_InitTypeDef SPI_InitStructInfo;
@@ -285,9 +284,8 @@ void EXTI0_1_IRQHandler()
 			TIM2->CR1 = 0x0000;
 		//	- Read out count register (TIM2->CNT).
 			count=(int)TIM2->CNT;
-		//	- Calculate signal period and frequency.
+		//	- Calculate signal frequency.
 			frequency= (clock_Frequency/count);
-			resistance = (unsigned int)((ADC1->DR *5000)/4095);
 		//	- Print calculated values to the console.
 		//	  NOTE: Function trace_printf does not work
 		//	  with floating-point numbers: you must use
@@ -304,7 +302,7 @@ void EXTI0_1_IRQHandler()
 	}
 }
 
-void myLCD_PrintLine(unsigned int num, unsigned int line){
+void myLCD_PrintLine(unsigned char num, unsigned int line){
 	char numstring[8];
 	//Check if line 1 or 2 to set address and add lables
 	if(line == 0){
@@ -319,7 +317,7 @@ void myLCD_PrintLine(unsigned int num, unsigned int line){
 		numstring[0] = 'R';
 		numstring[1] = ':';
 		numstring[6] = 'O';
-		numstring[7] = 'h';	
+		numstring[7] = 'h';
 	}
 	//Convert num to Ascii String
 	numstring[2]=(unsigned char)((num/1000)+48);
@@ -393,8 +391,8 @@ void myDAC_Init(){
 	GPIOA->MODER |= (0x300);
 	/* Ensure no pull-up/pull-down for PA4 */
 	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR4);
-	/* low speed mode for PA4 */
-	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR4);
+	/* high speed mode for PA4 */
+	GPIOB->OSPEEDR |= (GPIO_OSPEEDER_OSPEEDR4);
 
 	//Enable DAC and software trigger
 	DAC->CR |= 0x39;
@@ -410,8 +408,8 @@ void myADC_Init(){
 	GPIOA->MODER |= (0x3000);
 	//Ensure no pull-up/pull-down for PA6
 	GPIOA->PUPDR |= ~(GPIO_PUPDR_PUPDR6);
-	//low speed mode for PA6
-	GPIOA->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR6);
+	//high speed mode for PA6
+	GPIOA->OSPEEDR |= (GPIO_OSPEEDER_OSPEEDR6);
 
 	//ensure ADC disabled then calibrate, then re enable
 	ADC1->CR &= ~(0x1);
@@ -426,6 +424,8 @@ void myADC_Init(){
 	ADC1->CFGR2 &= ~(0xC0000000);
 	//wait for ADC to be ready by checking ADRDY
 	while((ADC1->ISR & 0x1)!=0x1);
+	//lots of samples per ADC cycle
+	ADC1->SMPR= 0x7;
 	//Enable ADC Start
 	ADC1->CR |= (0x4);
 }
@@ -440,4 +440,5 @@ void wait(uint32_t mag){
 
 // ----------------------------------------------------------------------------
 
-
+　
+　
